@@ -190,6 +190,38 @@ set(LUAJIT_SOURCES
 add_library(LuaJIT STATIC ${LUAJIT_SOURCES} "${LUAJIT_VM_OUTPUT}")
 add_dependencies(LuaJIT luaJIT_headers)
 
+# Force LuaJIT to compile using strict C99 standards to preserve layout rules
+set_target_properties(LuaJIT PROPERTIES
+    C_STANDARD 99
+    C_STANDARD_REQUIRED ON
+    C_EXTENSIONS ON
+)
+
+# Also enforce it on the host bootstrap utilities
+set_target_properties(minilua PROPERTIES
+    C_STANDARD 99
+    C_STANDARD_REQUIRED ON
+    C_EXTENSIONS ON
+)
+
+set_target_properties(luaJIT_buildvm PROPERTIES
+    C_STANDARD 99
+    C_STANDARD_REQUIRED ON
+    C_EXTENSIONS ON
+)
+
+if(UNIX AND NOT APPLE)
+    target_compile_definitions(LuaJIT PRIVATE 
+        _GNU_SOURCE 
+        _FILE_OFFSET_BITS=64 
+        _LARGEFILE_SOURCE
+        LUAJIT_UNWIND_EXTERNAL   # <--- THIS IS THE KEY
+    )
+    
+    # Linux specific libraries (Makefile Line 338)
+    target_link_libraries(LuaJIT PRIVATE dl m)
+endif()
+
 target_include_directories(LuaJIT PUBLIC
     "${LUAJIT_SRC_DIR}"
     "${CMAKE_CURRENT_BINARY_DIR}"  # luajit.h, lj_bcdef.h, etc.
@@ -201,5 +233,10 @@ if(WIN32)
     target_compile_definitions(LuaJIT PRIVATE LUA_BUILD_AS_DLL)
 endif()
 if(NOT MSVC)
-    target_compile_options(LuaJIT PRIVATE -U_FORTIFY_SOURCE)
+    target_compile_options(LuaJIT PRIVATE 
+        -U_FORTIFY_SOURCE       # Makefile Line 217
+        -fno-stack-protector    # Makefile Line 258 (Crucial for JIT stack)
+        -fexceptions            # Required for external unwinding
+        -fPIC                   # Standard for Linux shared/static interop
+    )
 endif()
