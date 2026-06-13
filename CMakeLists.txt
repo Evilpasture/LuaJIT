@@ -25,6 +25,27 @@ else()
     endif()
 endif()
 
+# ==============================================================================
+#  LUAJIT CONFIGURATION FLAGS (Mirrors Makefile XCFLAGS)
+# ==============================================================================
+option(LUAJIT_ENABLE_LUA52COMPAT "Enable Lua 5.2 compatibility features" ON)
+option(LUAJIT_DISABLE_FFI        "Permanently disable FFI extension"     OFF)
+option(LUAJIT_DISABLE_JIT        "Disable JIT compiler (interpreter only)" OFF)
+
+set(LUAJIT_FEATURES_DEFINITIONS "")
+
+if(LUAJIT_ENABLE_LUA52COMPAT)
+    list(APPEND LUAJIT_FEATURES_DEFINITIONS LUAJIT_ENABLE_LUA52COMPAT)
+endif()
+
+if(LUAJIT_DISABLE_FFI)
+    list(APPEND LUAJIT_FEATURES_DEFINITIONS LUAJIT_DISABLE_FFI)
+endif()
+
+if(LUAJIT_DISABLE_JIT)
+    list(APPEND LUAJIT_FEATURES_DEFINITIONS LUAJIT_DISABLE_JIT)
+endif()
+
 # 2. BuildVM output mode
 if(WIN32)
     set(LUAJIT_VM_MODE peobj)
@@ -112,6 +133,7 @@ target_include_directories(luaJIT_buildvm PRIVATE
 add_dependencies(luaJIT_buildvm luaJIT_dasm luaJIT_version)
 if(MSVC OR (WIN32 AND CMAKE_C_COMPILER_ID MATCHES "Clang"))
     target_compile_definitions(luaJIT_buildvm PRIVATE _CRT_SECURE_NO_DEPRECATE)
+    target_compile_definitions(luaJIT_buildvm PRIVATE ${LUAJIT_FEATURES_DEFINITIONS})
 endif()
 if(USE_SANITIZERS)
     if(MSVC)
@@ -188,6 +210,7 @@ set(LUAJIT_SOURCES
 
 # 11. Final static library
 add_library(LuaJIT STATIC ${LUAJIT_SOURCES} "${LUAJIT_VM_OUTPUT}")
+target_compile_definitions(LuaJIT PRIVATE ${LUAJIT_FEATURES_DEFINITIONS})
 add_dependencies(LuaJIT luaJIT_headers)
 
 # Force LuaJIT to compile using strict C99 standards to preserve layout rules
@@ -215,7 +238,7 @@ if(UNIX AND NOT APPLE)
         _GNU_SOURCE 
         _FILE_OFFSET_BITS=64 
         _LARGEFILE_SOURCE
-        LUAJIT_UNWIND_EXTERNAL   # <--- THIS IS THE KEY
+        LUAJIT_UNWIND_EXTERNAL   
     )
     
     # Linux specific libraries (Makefile Line 338)
