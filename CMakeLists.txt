@@ -82,16 +82,40 @@ if(USE_SANITIZERS AND NOT MSVC)
 endif()
 
 # 5. genversion — generate luajit_relver.txt + luajit.h version info
-#    The .bat does: git show -s --format=%ct > luajit_relver.txt
-#                   minilua host/genversion.lua
 set(LUAJIT_RELVER_TXT "${LUAJIT_SRC_DIR}/luajit_relver.txt")
-add_custom_command(
-    OUTPUT "${LUAJIT_RELVER_TXT}"
-    COMMAND git show -s "--format=%ct" > "${LUAJIT_RELVER_TXT}"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    COMMENT "LuaJIT: extracting git version timestamp"
-    VERBATIM
-)
+
+find_package(Git QUIET)
+set(LJ_HAS_GIT FALSE)
+if(GIT_FOUND)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} rev-parse --is-inside-work-tree
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        RESULT_VARIABLE GIT_RES
+        ERROR_QUIET
+    )
+    if(GIT_RES EQUAL 0)
+        set(LJ_HAS_GIT TRUE)
+    endif()
+endif()
+
+if(LJ_HAS_GIT)
+    add_custom_command(
+        OUTPUT "${LUAJIT_RELVER_TXT}"
+        COMMAND ${GIT_EXECUTABLE} show -s "--format=%ct" > "${LUAJIT_RELVER_TXT}"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        COMMENT "LuaJIT: extracting git version timestamp"
+        VERBATIM
+    )
+else()
+    # Fallback for packaged sources or Docker contexts lacking .git
+    add_custom_command(
+        OUTPUT "${LUAJIT_RELVER_TXT}"
+        COMMAND ${CMAKE_COMMAND} -E echo "1700000000" > "${LUAJIT_RELVER_TXT}"
+        COMMENT "LuaJIT: writing fallback version timestamp"
+        VERBATIM
+    )
+endif()
+
 add_custom_command(
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/luajit_version_done"
     COMMAND $<TARGET_FILE:minilua> "${LUAJIT_SRC_DIR}/host/genversion.lua"
